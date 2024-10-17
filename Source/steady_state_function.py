@@ -7,7 +7,7 @@ Created on Julio 2024
 """
 import numpy as np
 from scipy.optimize import fsolve
-from kinetic_functions import dc_dt, aux, current
+from Kpynetic import dc_dt, aux, current
 
 def object(variables: np.ndarray, V: float,
            Ga: np.ndarray, DG: np.ndarray, beta: np.ndarray,
@@ -59,6 +59,7 @@ def steady_state(c0_reactants: np.ndarray, c0_products: np.ndarray, adsorbed: np
         c_products[i] = sol[lreactants:-ladsorbed]
         theta[i] = sol[-ladsorbed:]
         fval[i] = steady_state_func(sol)
+        j[i] = current(c_reactants[i], c_products[i], theta [i], E[i], Ga, DG, beta, ne, nu, T)
         init = sol
 
     return c_reactants, c_products, theta, fval, j
