@@ -6,13 +6,12 @@ M-elektrodica:
 Created on Julio 2024
 """
 import numpy as np
+
 from scipy.optimize import fsolve
-from Source.Recupera_data import RecuperaData
-from Source.Kpynetic import *
+from .Kpynetic import *
 
 class Calculator:
-    def __init__(self, directory):
-        data = RecuperaData(directory)
+    def __init__(self, data):
 
         self.c_reactants = np.zeros((len(data.E), len(data.reactants)))
         self.c_products = np.zeros((len(data.E), len(data.products)))
@@ -27,10 +26,8 @@ class Calculator:
 
         for i in range(len(data.E)):
             solution = fsolve(self.steady_state, initio, args=(data.E[i], data))
-            print(solution)
             self.c_reactants[i], self.c_products[i], self.theta[i] = self.unzip_variables(solution, data)
             self.fval[i] = self.steady_state(solution, data.E[i], data)
-
 
     def unzip_variables(self, variables, data):
         c_reactants = variables[:len(data.reactants)]
@@ -46,7 +43,6 @@ class Calculator:
 
         return (dc_dt(aux(c_reactants, c_products, theta, V, data.Ga, data.DG, data.beta, data.ne,
                          data.nu, data.T), data.nux) - rhs)
-
 
 
 
