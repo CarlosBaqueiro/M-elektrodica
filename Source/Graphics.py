@@ -8,12 +8,18 @@ Created on Julio 2024
 
 
 import matplotlib.pyplot as plt
+import numpy as np
+
+
 class Grapher:
     def __init__(self, data, results):
 
         self.fval(data.E, results.fval, data.reactants + data.products + data.adsorbed)
-        self.coverages(data.E, results.theta, data.adsorbed)
-        self.current(results.current, data.E)
+        self.current(data.E, results.j )
+
+    def graph_results(self, data, results):
+        self.species(data, results, 'inSolution', login=False)
+        self.species(data, results, 'coverages', login=True)
 
     def fval(self, E, f, variables):
         plt.plot(E, f, linestyle='-.', label=variables)
@@ -28,16 +34,23 @@ class Grapher:
         plt.tight_layout()
         plt.show()
 
-    def coverages(self, E, theta, adsorbed):
-        plt.plot(E, theta, label=adsorbed)
-        #plt.plot(E, (1-np.sum(theta*sites, axis=1)), label=r'$1-\sum \theta_i$')
-        #plt.yscale('log')
+    def species(self, data, results, label, login=False):
+        if label == 'coverages':
+            c_species = results.theta
+            legends = data.adsorbed
+            plt.ylabel(r'$\theta_i$')
+        elif label == 'inSolution':
+            c_species = np.concatenate([results.c_reactants, results.c_products], axis=1)
+            legends = data.reactants + data.products
+            plt.ylabel(r'$c_i\ mol/L$')
+
+        plt.plot(data.E, c_species, label=legends)
         plt.xlabel('Potential [V]')
-        plt.ylabel(r'$\theta_i$')
         plt.grid(visible=True, which='both', axis='both',color='grey', linestyle='-',linewidth='0.2')
         plt.minorticks_on()
-        plt.tight_layout()
         plt.legend(loc='lower right')
+        if login: plt.yscale('log')
+        plt.tight_layout()
         plt.show()
 
     def current(self, E, j):

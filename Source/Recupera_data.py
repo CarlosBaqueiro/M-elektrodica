@@ -78,13 +78,13 @@ class RecuperaData:
             for line in lines[2:]:
                 if line.strip() and line[0] != '#':
                     columns = [col.strip() for col in line.split('|')[1:-1]]
-                    Ga.append(float(columns[0]))
-                    DG.append(float(columns[1]))
-                    beta.append(float(columns[2]))
-                    left, right = re.split(r'<->', columns[3])
+                    left, right = re.split(r'<->', columns[0])
                     R = RecuperaData.process_species(left, species_list)
                     P = RecuperaData.process_species(right, species_list)
                     nu.append(P - R)
+                    Ga.append(float(columns[1]))
+                    DG.append(float(columns[2]))
+                    beta.append(float(columns[3]))
         Ga = np.array(Ga)
         DG = np.array(DG)
         beta = np.array(beta)
