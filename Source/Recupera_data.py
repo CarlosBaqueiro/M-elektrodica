@@ -11,13 +11,16 @@ class RecuperaData:
         self.reactants, self.c0_reactants, self.products, self.c0_products, self.adsorbed = self.species(species_file)
         self.Ga, self.DG, self.beta, self.nu = self.reactions(reaction_file, self.reactants, self.products,
                                                               self.adsorbed)
+        self.ne = self.nu[:, -1]
+        self.nux = self.nu[:, :(len(self.reactants) + len(self.products) + len(self.adsorbed))]
+        self.nu = self.nu[:, :(len(self.reactants) + len(self.products) + len(self.adsorbed)) + 1]
 
         variables_list = ['T', 'Fv', 'A', 'E_i', 'E_f', 'E_h']
         variables = self.op_variables(operations_file, variables_list)
         self.T = float(variables['T'])
         self.Fv = float(variables['Fv'])
         self.A = float(variables['A'])
-        self.E = np.arange(float(variables['E_i']), float(variables['E_f']), float(variables['E_h']))
+        self.E = np.arange(float(variables['E_i']), float(variables['E_f'])+float(variables['E_h']), float(variables['E_h']))
 
     @staticmethod
     def species(file_species):
