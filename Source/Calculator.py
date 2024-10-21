@@ -12,47 +12,79 @@ from .Kpynetic import *
 
 class Calculator:
     def __init__(self, data):
+        operation = data.operation
+        species = data.species
+        reactions = data.reactions
+        self.Kpy = Kpynetic(operation, species, reactions)
+        self.c_reactants = np.zeros((len(operation.potential), len(species.reactants)))
+        self.c_products = np.zeros((len(operation.potential), len(species.products)))
+        self.theta = np.zeros((len(operation.potential), len(species.adsorbed)))
 
-        self.c_reactants = np.zeros((len(data.E), len(data.reactants)))
-        self.c_products = np.zeros((len(data.E), len(data.products)))
-        self.theta = np.zeros((len(data.E), len(data.adsorbed)))
-        self.fval = np.zeros((len(data.E), (len(data.reactants)+len(data.products)+len(data.adsorbed))))
-        self.j = np.zeros(len(data.E))
+
+        self.j = np.zeros(len(operation.potential))
         #Initialization
-        c_reactants0 = np.ones(len(data.reactants))
-        c_products0 = np.zeros(len(data.products))
-        theta0 = np.zeros(len(data.adsorbed))
-        initio = np.concatenate([c_reactants0, c_products0, theta0])
 
-        for i in range(len(data.E)):
-            solution = fsolve(self.steady_state, initio, args=(data.E[i], data), xtol=1e-12, maxfev=2000)
-            #solution [solution < 0] = 0
-            self.c_reactants[i], self.c_products[i], self.theta[i] = self.unzip_variables(solution, data)
-            self.fval[i] = self.steady_state(solution, data.E[i], data)
-            self.j[i] = self.current(solution, data.E[i], data)
-            initio = solution
+        theta0 = np.zeros(len(species.adsorbed))
+        catalys0 = np.ones(len(species.catalys))
 
-    def unzip_variables(self, variables, data):
-        c_reactants = variables[:len(data.reactants)]
-        c_products = variables[len(data.reactants):-len(data.adsorbed)]
-        theta = variables[-len(data.adsorbed):]
+
+        if operation.cstr == False:
+            self.fval = np.zeros((len(operation.potential), len(species.adsorbed)))
+            initio = np.concatenate([theta0])
+            for i in range(len(operation.potential)):
+                solution = fsolve(self.steady_state_const, initio, args=(operation.potential[i], species, reactions, operation),
+                                  xtol=1e-20, maxfev=2000)
+                self.theta[i] = solution
+                self.c_reactants[i] = species.c0_reactants
+                self.c_products[i] = species.c0_products
+                self.fval[i] = self.steady_state_const(solution, operation.potential[i], species, reactions, operation)
+                self.j[i] = self.current_const(solution, operation.potential[i], species, reactions, operation)
+                initio = solution
+        else:
+            c_reactants0 = np.ones(len(species.reactants))
+            c_products0 = np.zeros(len(species.products))
+            self.fval = np.zeros((len(operation.potential), len(species.list)-2))
+            initio = np.concatenate([c_reactants0, c_products0, theta0])
+            for i in range(len(operation.potential)):
+                solution = fsolve(self.steady_state, initio, args=(operation.potential[i], species, reactions, operation),
+                                  xtol=1e-20, maxfev=2000)
+                self.c_reactants[i], self.c_products[i], self.theta[i] = self.unzip_variables(solution, species)
+                self.fval[i] = self.steady_state(solution, operation.potential[i], species, reactions, operation)
+                self.j[i] = self.current(solution, operation.potential[i], species, reactions, operation)
+                initio = solution
+
+    def aux_const(self, theta, V, species, reactions, operation):
+        c = self.Kpy.concentra(species.c0_reactants, species.c0_products, theta)
+        w = self.Kpy.wang(V, species, reactions, operation)
+        self.rate = Kpynetic.rate(w.preexponential, w.rate_constants, self.Kpy.powerlaw(c, reactions.nu))
+        return self.rate
+
+    def steady_state_const(self, theta, V, species, reactions, operation):
+        return self.Kpy.dcdt(self.aux_const(theta, V, species, reactions, operation), reactions.nua)
+
+    def current_const(self, theta, V, species, reactions, operation):
+        return np.dot(reactions.ne, self.aux_const(theta, V, species, reactions, operation))
+
+    def unzip_variables(self, variables, species):
+        c_reactants = variables[:len(species.reactants)]
+        c_products = variables[len(species.reactants):-len(species.adsorbed)]
+        theta = variables[-len(species.adsorbed):]
         return c_reactants, c_products, theta
 
-    def steady_state(self, variables, V, data):
-        self.aux(variables, V, data)
-        return dc_dt(self.v, data.nux) - self.rhs
+    def steady_state(self, variables, V, species, reactions, operation):
+        self.aux(variables, V, species, reactions, operation)
+        return self.Kpy.dcdt(self.rate, reactions.nux) - self.rhs
 
-    def aux(self, variables, V, data):
-        c_reactants, c_products, theta = self.unzip_variables(variables, data)
-        kexp = np.exp(k(data.Ga, data.DG, data.ne, data.beta, V) / k_B / data.T)
-        c = concentra(c_reactants, c_products, theta)
-        r = powerlaw(c, data.nu)
-        self.v = rate(kexp, r)
-        self.rhs = np.concatenate([(c_reactants - data.c0_reactants) * data.Fv / data.A,
-                                   (c_products - data.c0_products) * data.Fv / data.A,
+    def aux(self, variables, V, species, reactions, operation):
+        c_reactants, c_products, theta = self.unzip_variables(variables, species)
+        c = self.Kpy.concentra(c_reactants, c_products, theta)
+        w = self.Kpy.wang(V, species, reactions, operation)
+        self.rate = Kpynetic.rate(w.preexponential, w.rate_constants, self.Kpy.powerlaw(c, reactions.nu))
+        self.rhs = np.concatenate([(c_reactants - species.c0_reactants) * operation.Fv / operation.Ac,
+                                   (c_products - species.c0_products) * operation.Fv / operation.Ac,
                                    np.zeros(len(theta))])
         return
 
-    def current(self, variables, V, data):
-        self.aux(variables, V, data)
-        return np.dot(data.ne, self.v) * F * k_B * data.T / h
+    def current(self, variables, V, species, reactions, operation):
+        self.aux(variables, V, species, reactions, operation)
+        return np.dot(reactions.ne, self.rate) * F * k_B * operation.T / h

@@ -1,7 +1,7 @@
 import numpy as np
 from .Graphics import Grapher
 
-class Test:
+class Tester:
     def __init__(self, data, results):
 
         self.print_species(data)
