@@ -17,9 +17,7 @@ class Grapher:
         species = data.species
         reactions = data.reactions
 
-
         self.graph_results(operation, species, results)
-
 
     def graph_results(self, operation, species, results):
         self.plot_fval(operation, species, results)

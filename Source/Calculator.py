@@ -5,65 +5,82 @@ M-elektrodica:
 
 Created on Julio 2024
 """
+# Importar las bibliotecas necesarias
 import numpy as np
-
 from scipy.optimize import fsolve
-from .Kpynetic import *
+from .Kpynetic import WangType
+from .Grapher import Grapher
 
-class Calculator:
-    def __init__(self, data):
-        operation = data.operation
-        species = data.species
-        reactions = data.reactions
-        self.Kpy = Kpynetic(operation, species, reactions)
-        self.c_reactants = np.zeros((len(operation.potential), len(species.reactants)))
-        self.c_products = np.zeros((len(operation.potential), len(species.products)))
-        self.theta = np.zeros((len(operation.potential), len(species.adsorbed)))
+class BaseConcentration:
+    def __init__(self, data, Kpy):
+        self.data = data
+        self.operation = data.operation
+        self.species = data.species
+        self.reactions = data.reactions
+        self.Kpy = Kpy
+
+    def simulator(self, Kpy):
+        self.c_reactants = np.zeros((len(self.operation.potential), len(self.species.reactants)))
+        self.c_products = np.zeros((len(self.operation.potential), len(self.species.products)))
+        self.theta = np.zeros((len(self.operation.potential), len(self.species.adsorbed)))
+        self.j = np.zeros(len(self.operation.potential))
+        self.fval, initio = self.inicialization(self.operation, self.species)
+        for i in range(len(self.operation.potential)):
+            potential = self.operation.potential[i]
+            solution = fsolve(self.steady_state, initio,
+                                  args=(potential, Kpy, self.data), xtol=1e-12, maxfev=2000)
+            self.c_reactants[i], self.c_products[i], self.theta[i] = self.unzip_variables(solution, self.species)
+            self.fval[i] = self.steady_state(solution, potential, Kpy, self.data)
+            self.j[i] = self.current(solution, potential, Kpy, self.data)
+            initio = solution
+        return self
+
+    def inicialization(self, operation, species):
+        raise NotImplementedError("The method inicialization must be implemented by the subclass")
+
+    def unzip_variables(self, variables, species):
+        raise NotImplementedError("The method unzip_variables must be implemented by the subclass")
+
+    def ride_hand_side(self, c_reactants, c_products, theta, data):
+        raise NotImplementedError("The method unzip_variables must be implemented by the subclass")
+
+    def steady_state(self, variables, potential, Kpy, data):
+        c_reactants, c_products, theta = self.unzip_variables(variables, data.species)
+        rhs = self.ride_hand_side(c_reactants, c_products, theta, data)
+        Kpy.potential(potential, c_reactants, c_products, theta)
+        return Kpy.dcdt(Kpy.v, data.reactions.nux) - rhs
+
+    def current(self, variables, potential, Kpy, data):
+        c_reactants, c_products, theta = self.unzip_variables(variables, data.species)
+        Kpy.potential(potential, c_reactants, c_products, theta)
+        return np.dot(data.reactions.ne, Kpy.v)
 
 
-        self.j = np.zeros(len(operation.potential))
-        #Initialization
-
+class StaticConcentration(BaseConcentration):
+    def inicialization(self, operation, species):
+        fval = np.zeros((len(operation.potential), len(species.adsorbed)))
         theta0 = np.zeros(len(species.adsorbed))
-        catalys0 = np.ones(len(species.catalys))
+        initio = np.concatenate([theta0])
+        return fval, initio
 
+    def unzip_variables(self, variables, species):
+        c_reactants = species.c0_reactants
+        c_products = species.c0_products
+        theta = variables
+        return c_reactants, c_products, theta
 
-        if operation.cstr == False:
-            self.fval = np.zeros((len(operation.potential), len(species.adsorbed)))
-            initio = np.concatenate([theta0])
-            for i in range(len(operation.potential)):
-                solution = fsolve(self.steady_state_const, initio, args=(operation.potential[i], species, reactions, operation),
-                                  xtol=1e-20, maxfev=2000)
-                self.theta[i] = solution
-                self.c_reactants[i] = species.c0_reactants
-                self.c_products[i] = species.c0_products
-                self.fval[i] = self.steady_state_const(solution, operation.potential[i], species, reactions, operation)
-                self.j[i] = self.current_const(solution, operation.potential[i], species, reactions, operation)
-                initio = solution
-        else:
-            c_reactants0 = np.ones(len(species.reactants))
-            c_products0 = np.zeros(len(species.products))
-            self.fval = np.zeros((len(operation.potential), len(species.list)-2))
-            initio = np.concatenate([c_reactants0, c_products0, theta0])
-            for i in range(len(operation.potential)):
-                solution = fsolve(self.steady_state, initio, args=(operation.potential[i], species, reactions, operation),
-                                  xtol=1e-20, maxfev=2000)
-                self.c_reactants[i], self.c_products[i], self.theta[i] = self.unzip_variables(solution, species)
-                self.fval[i] = self.steady_state(solution, operation.potential[i], species, reactions, operation)
-                self.j[i] = self.current(solution, operation.potential[i], species, reactions, operation)
-                initio = solution
+    def ride_hand_side(self, c_reactants, c_products, theta, data):
+        return np.zeros(len(theta))
 
-    def aux_const(self, theta, V, species, reactions, operation):
-        c = self.Kpy.concentra(species.c0_reactants, species.c0_products, theta)
-        w = self.Kpy.wang(V, species, reactions, operation)
-        self.rate = Kpynetic.rate(w.preexponential, w.rate_constants, self.Kpy.powerlaw(c, reactions.nu))
-        return self.rate
-
-    def steady_state_const(self, theta, V, species, reactions, operation):
-        return self.Kpy.dcdt(self.aux_const(theta, V, species, reactions, operation), reactions.nua)
-
-    def current_const(self, theta, V, species, reactions, operation):
-        return np.dot(reactions.ne, self.aux_const(theta, V, species, reactions, operation))
+class DynamicConcentration(BaseConcentration):
+    def inicialization(self, operation, species):
+        fval = np.zeros((len(operation.potential),
+                         len(species.reactants) + len(species.products) + len(species.adsorbed)))
+        c_reactants0 = np.ones(len(species.reactants))
+        c_products0 = np.zeros(len(species.products))
+        theta0 = np.zeros(len(species.adsorbed))
+        initio = np.concatenate([c_reactants0, c_products0, theta0])
+        return fval, initio
 
     def unzip_variables(self, variables, species):
         c_reactants = variables[:len(species.reactants)]
@@ -71,20 +88,24 @@ class Calculator:
         theta = variables[-len(species.adsorbed):]
         return c_reactants, c_products, theta
 
-    def steady_state(self, variables, V, species, reactions, operation):
-        self.aux(variables, V, species, reactions, operation)
-        return self.Kpy.dcdt(self.rate, reactions.nux) - self.rhs
+    def ride_hand_side(self, c_reactants, c_products, theta, data):
+        return np.concatenate([(c_reactants - data.species.c0_reactants) * data.operation.Fv / data.operation.Ac,
+                               (c_products - data.species.c0_products) * data.operation.Fv / data.operation.Ac,
+                               np.zeros(len(theta))])
 
-    def aux(self, variables, V, species, reactions, operation):
-        c_reactants, c_products, theta = self.unzip_variables(variables, species)
-        c = self.Kpy.concentra(c_reactants, c_products, theta)
-        w = self.Kpy.wang(V, species, reactions, operation)
-        self.rate = Kpynetic.rate(w.preexponential, w.rate_constants, self.Kpy.powerlaw(c, reactions.nu))
-        self.rhs = np.concatenate([(c_reactants - species.c0_reactants) * operation.Fv / operation.Ac,
-                                   (c_products - species.c0_products) * operation.Fv / operation.Ac,
-                                   np.zeros(len(theta))])
-        return
+class Calculator:
+    def __init__(self, data):
+        self.data = data
+        self.operation = data.operation
 
-    def current(self, variables, V, species, reactions, operation):
-        self.aux(variables, V, species, reactions, operation)
-        return np.dot(reactions.ne, self.rate) * F * k_B * operation.T / h
+        if self.operation.model == 'Wang':
+            self.Kpy = WangType(self.data)
+
+        if self.operation.cstr:
+            solver = DynamicConcentration(self.data, self.Kpy)
+        else:
+            solver = StaticConcentration(self.data, self.Kpy)
+
+        self.results = solver.simulator(self.Kpy)
+        Grapher(self.data, self.results)
+

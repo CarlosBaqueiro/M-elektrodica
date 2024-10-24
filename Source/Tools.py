@@ -1,4 +1,4 @@
-
+import shutil
 
 def unit_conversion(variable, value, unit_in, unit_out):
     if variable == 'Temperature':
@@ -11,3 +11,9 @@ def showme (name, array):
     print("\n", name)
     print("\nSize", array.shape)
     print("\n", array)
+
+def print_center(text):
+    columns = shutil.get_terminal_size().columns
+    padding = (columns - len(text)) // 2
+    text = ' ' * padding + text
+    print(text)

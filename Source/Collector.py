@@ -2,7 +2,7 @@ import os
 import numpy as np
 import re
 
-from .Tools import *
+from .Tools import unit_conversion
 
 
 class DataOperation:
@@ -105,9 +105,9 @@ class DataReactions:
 
 class Collector:
     def __init__(self, directory):
-        self.operation = DataOperation(os.path.join(directory, 'operation_conditions.md'))
-        self.species = DataSpecies(os.path.join(directory, 'species_list.md'), self.operation)
-        self.reactions = DataReactions(os.path.join(directory, 'reactions_list.md'), self.operation, self.species)
+        self.operation = DataOperation(os.path.join(directory, 'operating.md'))
+        self.species = DataSpecies(os.path.join(directory, 'species.md'), self.operation)
+        self.reactions = DataReactions(os.path.join(directory, 'reactions.md'), self.operation, self.species)
 
     @staticmethod
     def raw_data(name_file):

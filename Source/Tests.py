@@ -1,5 +1,5 @@
 import numpy as np
-from .Graphics import Grapher
+from .Grapher import Grapher
 
 class Tester:
     def __init__(self, data, results):

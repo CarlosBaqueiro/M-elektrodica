@@ -7,16 +7,13 @@ Created on Julio 2024
 """
 
 import os
-from Source.Calculator import *
-from Source.Data_collection import *
-from Source.Graphics import *
-from Source.Tests import *
-from Source.Validation_test import *
+from Source import *
+
 #pakage = 'Sheng2020'
 pakage = 'Wang2007Hydrogen'
 
 if __name__ == '__main__':
-    ValidationTest()
+    #ValidationTest()
     run = True
     test = False
     if run:
@@ -26,7 +23,6 @@ if __name__ == '__main__':
         else:
             data = Collector(directory)
             results = Calculator(data)
-            Grapher(data, results)
             if test:
                 Tester(data, results)
 
