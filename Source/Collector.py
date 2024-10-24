@@ -112,7 +112,8 @@ class Collector:
     @staticmethod
     def raw_data(name_file):
         if not os.path.exists(name_file):
-            raise FileNotFoundError(f"The species file was not found at the expected location: {name_file}")
+            raise FileNotFoundError(f"File was not found at the expected location: {name_file}")
+        print(f'\t{name_file}')
         header = []
         raw_data = []
         with open(name_file, 'r') as f:

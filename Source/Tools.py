@@ -17,3 +17,8 @@ def print_center(text):
     padding = (columns - len(text)) // 2
     text = ' ' * padding + text
     print(text)
+
+def begin ( ):
+    print(f'\n')
+    print_center('\u03BC-elektrodica')
+    print(f'\n')

@@ -2,8 +2,5 @@
 from .Collector import Collector
 from .Calculator import Calculator
 from .Grapher import Grapher
-from .Tools import print_center
+from .Tools import begin
 
-print(f'\n')
-print_center('\u03BC-elektrodica')
-print(f'\n')
